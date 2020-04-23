@@ -1,69 +1,82 @@
-#!/Users/oscar/opt/anaconda3/bin/python3
+#!python3
 
 import os
-import sys
 
-# This script will run test for all *.mx files under 'path' EXCEPT for <arguments>
-path = '/Users/oscar/Documents/Classes/1920_Spring/Compiler/Compiler-2020/local-judge/testcase/codegen/'
 
-testcases = []
-for f in os.listdir(path):
-    if os.path.splitext(f)[1] == '.mx':
-        testcases.append(f)
-for s in sys.argv[1:]:
-    testcases.remove(s + '.mx')
-testcases.sort()
+test_cases_dir = "./testcases/codegen"
+compile_cmd = "bash ./codegen.bash"
+excluded_test_cases = ["foo.mx"]
+ravel_path = "./ravel"
+builtin_path = "./builtin.s"
 
-timeres = ''
+# When use_llvm is true, the output should be a .ll file, and we will use llc to
+# compile it into asm. You can test the correctness of your IR-gen with this.
+use_llvm = False
+llc_cmd = 'llc-9'
 
-for t in testcases:
-    os.system('cp %s%s ./in.mx' % (path, t))
-    with open('in.mx', 'r') as f:
-        ar = f.read().split('\n')
-        ip = ''
-        flag = False
-        for l in ar:
-            if l.strip() == '=== end ===':
-                flag = False
-                with open('test.in', 'w') as g:
-                    print(ip, file=g)
-            elif flag:
-                ip += (l + '\n')
-            elif l.strip()  == '=== input ===':
-                flag = True
-        ip = ''
-        flag = False
-        for l in ar:
-            if l.strip() == '=== end ===':
-                flag = False
-                with open('test.ans', 'w') as g:
-                    print(ip, file=g)
-            elif flag:
-                ip += (l + '\n')
-            elif l.strip()  == '=== output ===':
-                flag = True
-        print(t, ':', end='')
-        if os.system('../MxSwift/.build/release/MxSwift >/dev/null'): # 1. To compiler source file 'in.mx'
-            print('\033[1;35mBuild failed... \033[0m', end='')
-            break
-        else:
-            print('\033[1;32mBuild passed... \033[0m', end='')
-            if os.system('./build.sh out2 <test.in >test.out') or os.system('diff -B -b test.out test.ans > diff.out'): # 2. To compile with llc and compare output
-                print('\033[1;31mx86 failed... \033[0m', end='')
-                # break
-            else:
-                print('\033[1;32mx86 passed... \033[0m', end='')
-            if os.system('./test.sh out2 2>/dev/null >ravel.out') or os.system('diff -B -b test.out test.ans'): # 3. To compile with my own backend and compare output
-                print('\033[1;31mravel failed... \033[0m', end='')
-                break
-            else:
-                with open('ravel.out', 'r') as h:
-                    ar = h.read().split('\n')
-                    for l in ar:
-                        if l.startswith('time: '):
-                            tm = l
-                            timeres += (l[6:] + ',')
-                            break
-                print('\033[1;32mravel passed with ' + tm + '... \033[0m', end='')
-        print('')
-# print(timeres) # print cycle counts for all tests for statistical use
+
+color_red = "\033[0;31m"
+color_green = "\033[0;32m"
+color_none = "\033[0m"
+
+
+def collect_test_cases():
+    test_cases = []
+    for f in os.listdir(test_cases_dir):
+        if os.path.splitext(f)[1] == '.mx':
+            test_cases.append(f)
+    for s in excluded_test_cases:
+        if s in test_cases: test_cases.remove(s)
+    test_cases.sort()
+    return test_cases
+
+
+def parse_test_case(test_case_path):
+    with open(test_case_path, 'r') as f:
+        lines = f.read().split('\n')
+    src_start_idx = lines.index('*/', lines.index('/*')) + 1
+    src_text = '\n'.join(lines[src_start_idx:])
+
+    input_start_idx = lines.index('=== input ===') + 1
+    input_end_idx = lines.index('=== end ===', input_start_idx)
+    input_text = '\n'.join(lines[input_start_idx:input_end_idx])
+
+    output_start_idx = lines.index('=== output ===') + 1
+    output_end_idx = lines.index('=== end ===', output_start_idx)
+    output_text = '\n'.join(lines[output_start_idx:output_end_idx])
+
+    return src_text, input_text, output_text
+
+
+def main():
+    test_cases = collect_test_cases()
+    os.system('cp %s ./builtin.s' % builtin_path)
+    for t in test_cases:
+        src_text, input_text, output_text = parse_test_case(test_cases_dir + t)
+        with open('test.mx', 'w') as f:
+            f.write(src_text)
+        with open('test.in', 'w') as f:
+            f.write(input_text)
+        with open('test.ans', 'w') as f:
+            f.write(output_text)
+
+        print(t + ':', end=' ')
+        if os.system('%s < ./test.mx > test.s' % compile_cmd):
+            print(color_red + "Compilation failed")
+            continue
+        if use_llvm:
+            os.system('mv ./test.s ./test.ll')
+            os.system(llc_cmd + ' --march=riscv32 -mattr=+m -o test.s test.ll')
+
+        if os.system('%s --oj-mode < test.in > ravel.out 2>/dev/null'
+                     % ravel_path):
+            print(color_red + "Runtime error" + color_none)
+            continue
+        if os.system('diff -B -b test.out test.ans > diff.out'):
+            print(color_red + "Wrong answer" + color_none)
+            continue
+        print(color_green + "Accepted" + color_none)
+
+
+if __name__ == '__main__':
+    main()
