@@ -66,7 +66,7 @@ def main():
 
         print(t + ':', end=' ')
         if os.system('%s < ./test.mx > test.s' % execute_cmd):
-            print(color_red + "Compilation failed")
+            print(color_red + "Compilation failed" + color_none)
             continue
         if use_llvm:
             os.system('mv ./test.s ./test.ll')
