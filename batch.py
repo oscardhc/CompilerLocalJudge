@@ -3,8 +3,9 @@
 import os
 
 
-test_cases_dir = "./testcases/codegen"
-compile_cmd = "bash ./codegen.bash"
+test_cases_dir = './testcases/codegen'
+compile_cmd = "bash ./build.bash"
+execute_cmd = "bash ./codegen.bash"
 excluded_test_cases = ["foo.mx"]
 ravel_path = "./ravel"
 builtin_path = "./builtin.s"
@@ -49,6 +50,9 @@ def parse_test_case(test_case_path):
 
 
 def main():
+    if os.system(compile_cmd):
+        print(color_red + "Fail when building your compiler...")
+        return
     test_cases = collect_test_cases()
     os.system('cp %s ./builtin.s' % builtin_path)
     for t in test_cases:
@@ -62,8 +66,8 @@ def main():
             f.write(output_text)
 
         print(t + ':', end=' ')
-        if os.system('%s < ./test.mx > test.s' % compile_cmd):
-            print(color_red + "Compilation failed")
+        if os.system('%s < ./test.mx > test.s' % execute_cmd):
+            print(color_red + "Compilation failed" + color_none)
             continue
         if use_llvm:
             os.system('mv ./test.s ./test.ll')
