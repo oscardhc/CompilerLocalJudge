@@ -56,7 +56,8 @@ def main():
     test_cases = collect_test_cases()
     os.system('cp %s ./builtin.s' % builtin_path)
     for t in test_cases:
-        src_text, input_text, output_text = parse_test_case(test_cases_dir + t)
+        src_text, input_text, output_text = \
+            parse_test_case(os.path.join(test_cases_dir, t))
         with open('test.mx', 'w') as f:
             f.write(src_text)
         with open('test.in', 'w') as f:
@@ -79,7 +80,14 @@ def main():
         if os.system('diff -B -b test.out test.ans > diff.out'):
             print(color_red + "Wrong answer" + color_none)
             continue
-        print(color_green + "Accepted" + color_none)
+        with open('ravel.out', 'r') as f:
+            lines = f.readlines()
+            for line in lines:
+                if not line.startswith('time: '):
+                    continue
+                time = int(line[6:])
+                break
+        print(color_green + "Accepted" + color_none + '(' + f'{time:,}' + ')')
 
 
 if __name__ == '__main__':
